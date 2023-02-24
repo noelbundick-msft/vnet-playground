@@ -94,6 +94,8 @@ resource "azurerm_linux_web_app" "webapp" {
   location            = azurerm_service_plan.appSvcPlan.location
   service_plan_id     = azurerm_service_plan.appSvcPlan.id
 
+  https_only = true
+
   virtual_network_subnet_id = azurerm_subnet.webapp.id
 
   // https://learn.microsoft.com/en-us/azure/app-service/configure-vnet-integration-routing
