@@ -79,3 +79,26 @@ resource "azurerm_subnet_network_security_group_association" "webapp" {
   subnet_id                 = azurerm_subnet.webapp.id
   network_security_group_id = azurerm_network_security_group.webapp.id
 }
+
+resource "azurerm_service_plan" "appSvcPlan" {
+  name                = "appSvcPlan${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  os_type             = "Linux"
+  sku_name            = "B1"
+}
+
+resource "azurerm_linux_web_app" "webapp" {
+  name                = "webapp${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_service_plan.appSvcPlan.location
+  service_plan_id     = azurerm_service_plan.appSvcPlan.id
+
+  virtual_network_subnet_id = azurerm_subnet.webapp.id
+
+  // https://learn.microsoft.com/en-us/azure/app-service/configure-vnet-integration-routing
+  // uses different (not the recommended) properties. Some are missing.
+  site_config {
+    vnet_route_all_enabled = true
+  }
+}
