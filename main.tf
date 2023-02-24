@@ -1,5 +1,7 @@
 provider "azurerm" {
   features {}
+  
+  skip_provider_registration = true
 }
 
 variable "region" {
@@ -20,7 +22,7 @@ resource "random_string" "suffix" {
   length  = 5
   upper   = false
   lower   = true
-  numeric  = true
+  numeric = true
   special = false
 }
 
@@ -70,7 +72,10 @@ resource "azurerm_subnet" "webapp" {
   delegation {
     name = "webapp"
     service_delegation {
-      name    = "Microsoft.Web/serverFarms"
+      name = "Microsoft.Web/serverFarms"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action"
+      ]
     }
   }
 }
@@ -78,6 +83,59 @@ resource "azurerm_subnet" "webapp" {
 resource "azurerm_subnet_network_security_group_association" "webapp" {
   subnet_id                 = azurerm_subnet.webapp.id
   network_security_group_id = azurerm_network_security_group.webapp.id
+}
+
+resource "azurerm_container_registry" "acr" {
+  name                = "acr${random_string.suffix.result}"
+  resource_group_name = azurerm_resource_group.rg.name
+  location            = azurerm_resource_group.rg.location
+  sku                 = "Premium"
+  admin_enabled       = false
+}
+
+resource "azurerm_private_endpoint" "acr" {
+  name                = "acr${random_string.suffix.result}"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.default.id
+
+  private_service_connection {
+    name                           = "default"
+    private_connection_resource_id = azurerm_container_registry.acr.id
+    subresource_names              = ["registry"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name = "acr${random_string.suffix.result}"
+    private_dns_zone_ids = [
+      azurerm_private_dns_zone.acr.id
+    ]
+  }
+}
+
+resource "azurerm_application_security_group" "registries" {
+  name                = "registries"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_private_endpoint_application_security_group_association" "acr_registries" {
+  private_endpoint_id           = azurerm_private_endpoint.acr.id
+  application_security_group_id = azurerm_application_security_group.registries.id
+}
+
+resource "azurerm_private_dns_zone" "acr" {
+  name                = "privatelink.azurecr.io"
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "acr" {
+  name                  = azurerm_virtual_network.vnet.name
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.acr.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  registration_enabled  = false
 }
 
 resource "azurerm_service_plan" "appSvcPlan" {

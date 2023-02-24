@@ -61,6 +61,91 @@ resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = {
   }
 }
 
+resource defaultSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
+  name: 'default'
+  parent: vnet
+}
+
+resource webappSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
+  name: 'webapp'
+  parent: vnet
+}
+
+resource acr 'Microsoft.ContainerRegistry/registries@2022-12-01' = {
+  name: 'acr${suffix}'
+  location: location
+  sku: {
+    name: 'Premium'
+  }
+  properties: {
+    adminUserEnabled: false
+  }
+}
+
+// attach the ACR to an ASG so that NSG rules can apply to "registries" instead of IP addresses
+resource registriesASG 'Microsoft.Network/applicationSecurityGroups@2022-07-01' = {
+  name: 'registries'
+  location: location
+}
+
+resource acrPrivateEndpoint 'Microsoft.Network/privateEndpoints@2022-07-01' = {
+  name: 'acr${suffix}PrivateEndpoint'
+  location: location
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: 'default'
+        properties: {
+          privateLinkServiceId: acr.id
+          groupIds: [
+            'registry'
+          ]
+        }
+      }
+    ]
+    subnet: {
+      id: defaultSubnet.id
+    }
+    applicationSecurityGroups: [
+      {
+        id: registriesASG.id
+      }
+    ]
+  }
+}
+
+resource acrPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.azurecr.io'
+  location: 'global'
+}
+
+resource acrPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: acrPrivateDnsZone
+  name: vnet.name
+  location: 'global'
+  properties: {
+    virtualNetwork: {
+      id: vnet.id
+    }
+    registrationEnabled: false
+  }
+}
+
+resource acrPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2022-07-01' = {
+  parent: acrPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'default'
+        properties: {
+          privateDnsZoneId: acrPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
 resource appSvcPlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: 'appSvcPlan${suffix}'
   location: location
@@ -71,11 +156,6 @@ resource appSvcPlan 'Microsoft.Web/serverfarms@2022-03-01' = {
     reserved: true
   }
   kind: 'linux'
-}
-
-resource webappSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
-  name: 'webapp'
-  parent: vnet
 }
 
 resource webapp 'Microsoft.Web/sites@2022-03-01' = {
