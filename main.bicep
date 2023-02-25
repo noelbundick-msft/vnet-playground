@@ -1,4 +1,5 @@
 param location string = 'westus3'
+param image string = 'sample:v1'
 
 var suffix = take(toLower(uniqueString(resourceGroup().id, location)), 5)
 
@@ -161,6 +162,9 @@ resource appSvcPlan 'Microsoft.Web/serverfarms@2022-03-01' = {
 resource webapp 'Microsoft.Web/sites@2022-03-01' = {
   name: 'webapp${suffix}'
   location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     httpsOnly: true
     serverFarmId: appSvcPlan.id
@@ -169,5 +173,31 @@ resource webapp 'Microsoft.Web/sites@2022-03-01' = {
     vnetRouteAllEnabled: true
     vnetImagePullEnabled: true
     vnetContentShareEnabled: true
+
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${acr.properties.loginServer}/${image}'
+      acrUseManagedIdentityCreds: true
+      appSettings: [
+        {
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'false'
+        }
+      ]
+    }
+  }
+}
+
+// from https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
+resource acrPull 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
+}
+
+resource webappACRRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(webapp.id, acr.id, acrPull.id)
+  scope: acr
+  properties: {
+    roleDefinitionId: acrPull.id
+    principalId: webapp.identity.principalId
+    principalType: 'ServicePrincipal'
   }
 }
