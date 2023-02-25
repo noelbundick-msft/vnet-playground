@@ -14,6 +14,17 @@ variable "rg" {
   default = "test2"
 }
 
+// these have to be separate in Terraform even though they just get concatenated back into one string
+variable "image" {
+  type    = string
+  default = "sample"
+}
+
+variable "image_tag" {
+  type    = string
+  default = "v1"
+}
+
 resource "random_string" "suffix" {
   keepers = {
     resource_group = var.rg
@@ -153,6 +164,9 @@ resource "azurerm_linux_web_app" "webapp" {
   service_plan_id     = azurerm_service_plan.appSvcPlan.id
 
   https_only = true
+  identity {
+    type = "SystemAssigned"
+  }
 
   virtual_network_subnet_id = azurerm_subnet.webapp.id
 
@@ -160,5 +174,28 @@ resource "azurerm_linux_web_app" "webapp" {
   // uses different (not the recommended) properties. Some are missing.
   site_config {
     vnet_route_all_enabled = true
+    container_registry_use_managed_identity = true
+    application_stack {
+      // 2023-02-24: this is NOT private, and will only work if the ACR frontend is public
+      // https://github.com/hashicorp/terraform-provider-azurerm/issues/19096
+      docker_image = "${azurerm_container_registry.acr.login_server}/${var.image}"
+      docker_image_tag = var.image_tag
+    }
   }
+
+  app_settings = {
+    "WEBSITES_ENABLE_APP_SERVICE_STORAGE" = "false"
+  }
+}
+
+data "azurerm_linux_web_app" "webapp" {
+  name                = azurerm_linux_web_app.webapp.name
+  resource_group_name = azurerm_linux_web_app.webapp.resource_group_name
+}
+
+// the terraform docs don't seem to match reality here, we seem to have to do an extra lookup
+resource "azurerm_role_assignment" "webappACRRoleAssignment" {
+  scope                = azurerm_container_registry.acr.id
+  role_definition_name = "AcrPull"
+  principal_id         = data.azurerm_linux_web_app.webapp.identity.0.principal_id
 }
