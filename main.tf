@@ -25,6 +25,12 @@ variable "image_tag" {
   default = "v1"
 }
 
+variable "postgres_password" {
+  type    = string
+  default = "Password#1234"
+  sensitive = true
+}
+
 resource "random_string" "suffix" {
   keepers = {
     resource_group = var.rg
@@ -68,12 +74,6 @@ resource "azurerm_subnet_network_security_group_association" "default" {
   network_security_group_id = azurerm_network_security_group.default.id
 }
 
-resource "azurerm_network_security_group" "webapp" {
-  name                = "webapp"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
-}
-
 resource "azurerm_subnet" "webapp" {
   name                 = "webapp"
   resource_group_name  = azurerm_resource_group.rg.name
@@ -93,7 +93,29 @@ resource "azurerm_subnet" "webapp" {
 
 resource "azurerm_subnet_network_security_group_association" "webapp" {
   subnet_id                 = azurerm_subnet.webapp.id
-  network_security_group_id = azurerm_network_security_group.webapp.id
+  network_security_group_id = azurerm_network_security_group.default.id
+}
+
+resource "azurerm_subnet" "postgres" {
+  name                 = "postgres"
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.2.0/24"]
+
+  delegation {
+    name = "postgres"
+    service_delegation {
+      name = "Microsoft.DBforPostgreSQL/flexibleServers"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action"
+      ]
+    }
+  }
+}
+
+resource "azurerm_subnet_network_security_group_association" "postgres" {
+  subnet_id                 = azurerm_subnet.postgres.id
+  network_security_group_id = azurerm_network_security_group.default.id
 }
 
 resource "azurerm_container_registry" "acr" {
@@ -198,4 +220,34 @@ resource "azurerm_role_assignment" "webappACRRoleAssignment" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
   principal_id         = data.azurerm_linux_web_app.webapp.identity.0.principal_id
+}
+
+resource "azurerm_private_dns_zone" "postgres" {
+  name                = "private.postgres.database.azure.com"
+  resource_group_name = azurerm_resource_group.rg.name
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
+  name                  = azurerm_virtual_network.vnet.name
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.postgres.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  registration_enabled  = false
+}
+
+resource "azurerm_postgresql_flexible_server" "postgres" {
+  name                   = "postgres${random_string.suffix.result}"
+  resource_group_name    = azurerm_resource_group.rg.name
+  location               = azurerm_resource_group.rg.location
+  version                = "14"
+  delegated_subnet_id    = azurerm_subnet.postgres.id
+  private_dns_zone_id    = azurerm_private_dns_zone.postgres.id
+  administrator_login    = "azureuser"
+  administrator_password = var.postgres_password
+
+  storage_mb = 32768
+
+  sku_name   = "B_Standard_B1ms"
+  depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
+
 }
