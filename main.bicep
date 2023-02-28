@@ -167,6 +167,90 @@ resource acrPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZo
   }
 }
 
+resource keyvault 'Microsoft.KeyVault/vaults@2022-07-01' = {
+  name: 'kv${suffix}'
+  location: location
+  properties: {
+    tenantId: subscription().tenantId
+    enableRbacAuthorization: true
+    sku: {
+      family: 'A'
+      name: 'standard'
+    }
+  }
+}
+
+resource kvASG 'Microsoft.Network/applicationSecurityGroups@2022-07-01' = {
+  name: 'keyvault'
+  location: location
+}
+
+resource kvPrivateEndpoint 'Microsoft.Network/privateEndpoints@2022-07-01' = {
+  name: 'kv${suffix}PrivateEndpoint'
+  location: location
+  properties: {
+    privateLinkServiceConnections: [
+      {
+        name: 'default'
+        properties: {
+          privateLinkServiceId: keyvault.id
+          groupIds: [
+            'vault'
+          ]
+        }
+      }
+    ]
+    subnet: {
+      id: defaultSubnet.id
+    }
+    applicationSecurityGroups: [
+      {
+        id: kvASG.id
+      }
+    ]
+  }
+}
+
+resource kvPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
+  name: 'privatelink.vaultcore.azure.net'
+  location: 'global'
+}
+
+resource kvPrivateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2022-07-01' = {
+  parent: kvPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'default'
+        properties: {
+          privateDnsZoneId: kvPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+resource kvPrivateDnsVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = {
+  parent: kvPrivateDnsZone
+  name: vnet.name
+  location: 'global'
+  properties: {
+    virtualNetwork: {
+      id: vnet.id
+    }
+    registrationEnabled: false
+  }
+}
+
+resource postgresPasswordKVSecret 'Microsoft.KeyVault/vaults/secrets@2022-07-01' = {
+  parent: keyvault
+  name: 'postgresPassword'
+  properties: {
+    value: postgresPassword
+  }
+}
+
 resource appSvcPlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: 'appSvcPlan${suffix}'
   location: location
@@ -202,6 +286,28 @@ resource webapp 'Microsoft.Web/sites@2022-03-01' = {
           name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
           value: 'false'
         }
+        {
+          name: 'PGHOST'
+          value: postgres.properties.fullyQualifiedDomainName
+        }
+        {
+          name: 'PGPORT'
+          value: '5432'
+        }
+        {
+          name: 'PGSSLMODE'
+          value: 'require'
+        }
+        {
+          name: 'PGDATABASE'
+          value: 'postgres'
+        }
+        {
+          // https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references?tabs=azure-cli
+          // docs are wrong. If you include a trailing slash w/o specifying the version, it will fail
+          name: 'PGPASSWORD'
+          value: '@Microsoft.KeyVault(SecretUri=https://${keyvault.name}.vault.azure.net/secrets/${postgresPasswordKVSecret.name})'
+        }
       ]
     }
   }
@@ -217,6 +323,20 @@ resource webappACRRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-0
   scope: acr
   properties: {
     roleDefinitionId: acrPull.id
+    principalId: webapp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource keyVaultSecretsUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
+  name: '4633458b-17de-408a-b874-0445c86b69e6'
+}
+
+resource webappKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(webapp.id, keyvault.id, keyVaultSecretsUser.id)
+  scope: keyvault
+  properties: {
+    roleDefinitionId: keyVaultSecretsUser.id
     principalId: webapp.identity.principalId
     principalType: 'ServicePrincipal'
   }
