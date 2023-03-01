@@ -41,7 +41,7 @@ jobs:
 
     - name: Build Image
       run: |
-        docker build . -t ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
+        docker build ./fastapi -t ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
         docker push ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }} 
     
     - name: Building web app
