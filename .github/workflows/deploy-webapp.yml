@@ -52,4 +52,4 @@ jobs:
       with:
         app-name: webappt3qou
         images: ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
-        slot-name: production
+        slot-name: staging
