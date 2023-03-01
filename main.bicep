@@ -1,5 +1,5 @@
 param location string = 'westus3'
-param image string = 'sample:v1'
+param image string = 'fastapi:latest'
 
 @secure()
 param postgresPassword string = 'Password#1234'
@@ -287,6 +287,10 @@ resource webapp 'Microsoft.Web/sites@2022-03-01' = {
           value: 'false'
         }
         {
+          name: 'WEBSITES_PORT'
+          value: '8000'
+        }
+        {
           name: 'PGHOST'
           value: postgres.properties.fullyQualifiedDomainName
         }
@@ -301,6 +305,10 @@ resource webapp 'Microsoft.Web/sites@2022-03-01' = {
         {
           name: 'PGDATABASE'
           value: 'postgres'
+        }
+        {
+          name: 'PGUSER'
+          value: postgres.properties.administratorLogin
         }
         {
           // https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references?tabs=azure-cli
