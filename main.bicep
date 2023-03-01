@@ -381,13 +381,38 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
   name: 'postgres${suffix}'
   location: location
   sku: {
-    tier: 'Burstable'
-    name: 'Standard_B1ms'
+    tier: 'GeneralPurpose'
+    name: 'Standard_D2s_v3'
   }
   properties: {
     version: '14'
     administratorLogin: 'azureuser'
     administratorLoginPassword: postgresPassword
+    storage: {
+      storageSizeGB: 32
+    }
+    network: {
+      delegatedSubnetResourceId: postgresSubnet.id
+      privateDnsZoneArmResourceId: postgresDNS.id
+    }
+  }
+}
+
+resource postgresReadReplica 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
+  dependsOn: [
+    postgresDNSVnetLink
+  ]
+
+  name: 'postgres${suffix}-read'
+  location: location
+  sku: {
+    tier: 'GeneralPurpose'
+    name: 'Standard_D2s_v3'
+  }
+  properties: {
+    createMode: 'Replica'
+    sourceServerResourceId: postgres.id
+
     storage: {
       storageSizeGB: 32
     }
