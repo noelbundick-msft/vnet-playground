@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-    return {"message": "v3"}
+    return {"message": "Hello World"}
 
 @app.get("/env")
 async def env():
