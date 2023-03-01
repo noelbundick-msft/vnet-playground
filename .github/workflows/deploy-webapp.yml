@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  APP_NAME: fastapi # set this to your application's name
+  APP_NAME: webappt3qou # set this to your application's name
   ACR: acrt3qou.azurecr.io
 
 jobs:
