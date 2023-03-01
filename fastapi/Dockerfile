@@ -15,7 +15,7 @@ ENTRYPOINT [ "/entrypoint.sh" ]
 # note: assumes App Service appsettings are correctly configured
 # $ source <(cat /proc/1/environ | strings | sed -r 's/(.*)/export \1/g')
 # $ psql
-RUN apk add postgresql-client
+RUN apk add postgresql-client curl jq
 
 WORKDIR /app
 COPY requirements.txt .

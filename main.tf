@@ -113,6 +113,7 @@ resource "azurerm_subnet" "postgres" {
     name = "postgres"
 
     # hack: to get terraform not to detect state changes when there are none
+    # sadness: this doesn't work and terraform still spends 4 minutes touching the subnet anyway
     service_delegation {
       name = "Microsoft.DBforPostgreSQL/flexibleServers"
       actions = [
@@ -343,6 +344,12 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   administrator_login    = "azureuser"
   administrator_password = var.postgres_password
 
+  authentication {
+    password_auth_enabled = true
+    active_directory_auth_enabled = true
+    tenant_id = data.azurerm_subscription.current.tenant_id
+  }
+
   storage_mb = 32768
 
   sku_name   = "GP_Standard_D2s_v3"
@@ -350,6 +357,15 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
 
   # hack: to get terraform not to detect state changes when there are none
   zone = "1"
+}
+
+resource "azurerm_postgresql_flexible_server_active_directory_administrator" "postgres" {
+  server_name         = azurerm_postgresql_flexible_server.postgres.name
+  resource_group_name = azurerm_resource_group.rg.name
+  tenant_id           = data.azurerm_subscription.current.tenant_id
+  object_id           = data.azurerm_linux_web_app.webapp.identity.0.principal_id
+  principal_name      = azurerm_linux_web_app.webapp.name
+  principal_type      = "ServicePrincipal"
 }
 
 resource "azurerm_postgresql_flexible_server" "readReplica" {
