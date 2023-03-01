@@ -1,0 +1,50 @@
+name: Deploy Web App
+
+on:
+  workflow_dispatch:
+
+env:
+  APP_NAME: fastapi # set this to your application's name
+  ACR: acrt3qou.azurecr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: "Login via Azure CLI"
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    
+    - name: Set up Python 3.11.2
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.11.2
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r ./fastapi/requirements.txt
+
+    - name: Login to ACR
+      run: |
+        az acr login -n ${{ env.ACR }}
+
+    - name: Build Image
+      run: |
+        docker build . -t ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
+        docker push ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }} 
+    
+    - name: Building web app
+      uses: azure/appservice-build@v2
+
+    - uses: azure/webapps-deploy@v2
+      with:
+        app-name: $${{ env.APP_NAME }}
+        images: ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
+        slot-name: staging
