@@ -46,7 +46,7 @@ jobs:
     
     - name: Verify app service
       run: |
-        az webapp config appsettings list --name my-api-app --resource-group joshtrash1 --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        az webapp config appsettings list --name $${{ env.APP_NAME }} --resource-group joshtrash1 --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - uses: azure/webapps-deploy@v2
       with:
