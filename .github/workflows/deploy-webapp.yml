@@ -46,10 +46,10 @@ jobs:
     
     - name: Verify app service
       run: |
-        az webapp config appsettings list --name $${{ env.APP_NAME }} --resource-group joshtrash1 --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        az webapp config appsettings list --name webappt3qou --resource-group joshtrash1 --subscription ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - uses: azure/webapps-deploy@v2
       with:
-        app-name: $${{ env.APP_NAME }}
+        app-name: webappt3qou
         images: ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
         slot-name: production
