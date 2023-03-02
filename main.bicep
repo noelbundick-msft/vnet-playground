@@ -177,6 +177,7 @@ resource keyvault 'Microsoft.KeyVault/vaults@2022-07-01' = {
       family: 'A'
       name: 'standard'
     }
+    publicNetworkAccess: 'disabled'
   }
 }
 
@@ -372,6 +373,7 @@ resource postgresDNSVnetLink 'Microsoft.Network/privateDnsZones/virtualNetworkLi
 // Vnet needs subnet delegation and private dns zone
 // can't be moved. doesn't support private link
 // Single server, CosmosDB for PostgreSQL have a more typical network setup
+// Automating AAD auth to grant a limited role on the web app would be difficult. A SP/identity can be granted access, but deploymentScripts don't support VNET integration
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
   // the DNS/VNET link must exist before provisioning
   dependsOn: [
@@ -395,12 +397,31 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
       delegatedSubnetResourceId: postgresSubnet.id
       privateDnsZoneArmResourceId: postgresDNS.id
     }
+    authConfig: {
+      passwordAuth: 'Enabled'
+      activeDirectoryAuth: 'Enabled'
+      tenantId: subscription().tenantId
+    }
   }
 }
 
+// Must be done separately because `name` must be known at deployment time
+module postgresAADAdmin './postgresAdmin.bicep' = {
+  name: 'postgresAADAdmin'
+  params: {
+    postgresServer: postgres.name
+    principalId: webapp.identity.principalId
+    principalName: webapp.name
+  }
+}
+
+// bug? This can't be redeployed if the replica already exists
 resource postgresReadReplica 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
   dependsOn: [
     postgresDNSVnetLink
+    
+    // force the AAD config on the primary to be created before creating the replica
+    postgresAADAdmin
   ]
 
   name: 'postgres${suffix}-read'
