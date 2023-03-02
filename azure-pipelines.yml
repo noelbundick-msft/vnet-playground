@@ -5,7 +5,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  - AZURE_SUBSCRIPTION_ID: ed535055-bb61-47c6-b2f1-f1d702537e94
+  AZURE_SUBSCRIPTION_ID: ed535055-bb61-47c6-b2f1-f1d702537e94
 
 steps:
   - task: AzureCLI@2
