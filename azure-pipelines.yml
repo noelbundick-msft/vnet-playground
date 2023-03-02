@@ -10,10 +10,16 @@ steps:
       azureSubscription: azdo-csekraken
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: az group list -o table    
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -euo pipefail
 
-  - bash: |
-      set -x
-      
-      ls -al $(Agent.TempDirectory)
-      ls -al $(System.DefaultWorkingDirectory)
+        echo "##vso[task.setvariable variable=ARM_TENANT_ID]$tenantId"
+        echo "##vso[task.setvariable variable=ARM_CLIENT_ID]$servicePrincipalId"
+        
+        openssl pkcs12 -inkey $(Agent.TempDirectory)/spnCert.pem -in $(Agent.TempDirectory)/spnCert.pem -export -out $(Agent.TempDirectory)/spnCert.pfx -passout pass:
+        echo "##vso[task.setvariable variable=ARM_CLIENT_CERTIFICATE_PATH]$(Agent.TempDirectory)/spnCert.pfx"
+        
+        echo "##vso[task.setvariable variable=ARM_CLIENT_CERTIFICATE_PASSWORD]"
+
+  - bash: TF_LOG=debug terraform init

@@ -1,3 +1,19 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source = "hashicorp/azurerm"
+      version = ">= 3.45.0"
+    }
+  }
+
+  backend "azurerm" {
+    storage_account_name = "azdocsekraken"
+    container_name = "tfstate"
+    key = "vnet-playground.tfstate"
+    use_azuread_auth = true
+  }
+}
+
 provider "azurerm" {
   features {}
 
@@ -382,7 +398,12 @@ resource "azurerm_postgresql_flexible_server" "readReplica" {
   storage_mb = 32768
 
   sku_name   = "GP_Standard_D2s_v3"
-  depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
+  depends_on = [
+    azurerm_private_dns_zone_virtual_network_link.postgres,
+
+    # force the AAD config on the primary to be created before creating the replica
+    azurerm_postgresql_flexible_server_active_directory_administrator.postgres
+  ]
 
   # hack: to get terraform not to detect state changes when there are none
   zone = "1"
