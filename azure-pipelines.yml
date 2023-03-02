@@ -5,9 +5,11 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  AZURE_SUBSCRIPTION_ID: ed535055-bb61-47c6-b2f1-f1d702537e94
+  ARM_SUBSCRIPTION_ID: ed535055-bb61-47c6-b2f1-f1d702537e94
 
 steps:
+  # Snag the client cert and set up auth for Terraform
+  # wow. https://discuss.hashicorp.com/t/azure-service-principal-client-certificate-error/32037?msclkid=9351d13bd12411ec96deb763dd60b7af
   - task: AzureCLI@2
     inputs:
       azureSubscription: azdo-csekraken
@@ -23,6 +25,5 @@ steps:
         openssl pkcs12 -inkey $(Agent.TempDirectory)/spnCert.pem -in $(Agent.TempDirectory)/spnCert.pem -export -out $(Agent.TempDirectory)/spnCert.pfx -passout pass: -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1
         echo "##vso[task.setvariable variable=ARM_CLIENT_CERTIFICATE_PATH]$(Agent.TempDirectory)/spnCert.pfx"
 
-  - bash: TF_LOG=debug terraform init
-    env:
-      ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+  - bash: terraform init
+  - bash: terraform plan
