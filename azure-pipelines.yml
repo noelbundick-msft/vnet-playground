@@ -8,6 +8,7 @@ steps:
   # Snag the client cert and set up auth for Terraform
   # wow. https://discuss.hashicorp.com/t/azure-service-principal-client-certificate-error/32037?msclkid=9351d13bd12411ec96deb763dd60b7af
   - task: AzureCLI@2
+    displayName: 'Configure Terraform auth'
     inputs:
       azureSubscription: azdo-csekraken
       scriptType: bash
@@ -26,4 +27,7 @@ steps:
         echo "##vso[task.setvariable variable=ARM_CLIENT_CERTIFICATE_PATH]$(Agent.TempDirectory)/spnCert.pfx"
 
   - bash: terraform init
+    displayName: 'terraform init'
+
   - bash: terraform plan
+    displayName: 'terraform plan'
