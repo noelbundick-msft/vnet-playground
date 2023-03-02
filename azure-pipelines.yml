@@ -12,4 +12,8 @@ steps:
       scriptLocation: inlineScript
       inlineScript: az group list -o table    
 
-  - bash: ls -al $(Agent.TempDirectory)/spnCert.pem
+  - bash: |
+      set -x
+      
+      ls -al $(Agent.TempDirectory)
+      ls -al $(System.DefaultWorkingDirectory)
