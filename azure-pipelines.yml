@@ -1,0 +1,15 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: azdo-csekraken
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: az group list -o table    
+
+  - bash: ls -al $(Agent.TempDirectory)/spnCert.pem
