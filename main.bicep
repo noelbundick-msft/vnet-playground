@@ -35,24 +35,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = {
         }
       }
       {
-        name: 'webapp'
-        properties: {
-          // minimum /28 (16 IPs), recommended /26 (64 IPs)
-          addressPrefix: '10.0.1.0/24'
-          networkSecurityGroup: {
-            id: defaultNsg.id
-          }
-          delegations: [
-            {
-              name: 'webapp'
-              properties: {
-                serviceName: 'Microsoft.Web/serverFarms'
-              }
-            }
-          ]
-        }
-      }
-      {
         name: 'postgres'
         properties: {
           // can't be resized after creation
@@ -79,11 +61,6 @@ resource vnet 'Microsoft.Network/virtualNetworks@2022-07-01' = {
 
 resource defaultSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
   name: 'default'
-  parent: vnet
-}
-
-resource webappSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-07-01' existing = {
-  name: 'webapp'
   parent: vnet
 }
 
@@ -252,104 +229,36 @@ resource postgresPasswordKVSecret 'Microsoft.KeyVault/vaults/secrets@2022-07-01'
   }
 }
 
-resource appSvcPlan 'Microsoft.Web/serverfarms@2022-03-01' = {
-  name: 'appSvcPlan${suffix}'
-  location: location
-  sku: {
-    name: 'B1'
-  }
-  properties: {
-    reserved: true
-  }
-  kind: 'linux'
-}
-
-resource webapp 'Microsoft.Web/sites@2022-03-01' = {
-  name: 'webapp${suffix}'
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    httpsOnly: true
-    serverFarmId: appSvcPlan.id
-
-    virtualNetworkSubnetId: webappSubnet.id
-    vnetRouteAllEnabled: true
-    vnetImagePullEnabled: true
-    vnetContentShareEnabled: true
-
-    siteConfig: {
-      linuxFxVersion: 'DOCKER|${acr.properties.loginServer}/${image}'
-      acrUseManagedIdentityCreds: true
-      appSettings: [
-        {
-          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
-          value: 'false'
-        }
-        {
-          name: 'WEBSITES_PORT'
-          value: '8000'
-        }
-        {
-          name: 'PGHOST'
-          value: postgres.properties.fullyQualifiedDomainName
-        }
-        {
-          name: 'PGPORT'
-          value: '5432'
-        }
-        {
-          name: 'PGSSLMODE'
-          value: 'require'
-        }
-        {
-          name: 'PGDATABASE'
-          value: 'postgres'
-        }
-        {
-          name: 'PGUSER'
-          value: postgres.properties.administratorLogin
-        }
-        {
-          // https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references?tabs=azure-cli
-          // docs are wrong. If you include a trailing slash w/o specifying the version, it will fail
-          name: 'PGPASSWORD'
-          value: '@Microsoft.KeyVault(SecretUri=https://${keyvault.name}.vault.azure.net/secrets/${postgresPasswordKVSecret.name})'
-        }
-      ]
-    }
-  }
-}
-
 // from https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles
 resource acrPull 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
   name: '7f951dda-4ed3-4680-a7ca-43fe172d538d'
 }
 
-resource webappACRRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webapp.id, acr.id, acrPull.id)
-  scope: acr
-  properties: {
-    roleDefinitionId: acrPull.id
-    principalId: webapp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
+// TODO: restore after configuring AKS
+// resource webappACRRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+//   name: guid(webapp.id, acr.id, acrPull.id)
+//   scope: acr
+//   properties: {
+//     roleDefinitionId: acrPull.id
+//     principalId: webapp.identity.principalId
+//     principalType: 'ServicePrincipal'
+//   }
+// }
 
 resource keyVaultSecretsUser 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
   name: '4633458b-17de-408a-b874-0445c86b69e6'
 }
 
-resource webappKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(webapp.id, keyvault.id, keyVaultSecretsUser.id)
-  scope: keyvault
-  properties: {
-    roleDefinitionId: keyVaultSecretsUser.id
-    principalId: webapp.identity.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
+// TODO: restore after configuring AKS
+// resource webappKeyVaultRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+//   name: guid(webapp.id, keyvault.id, keyVaultSecretsUser.id)
+//   scope: keyvault
+//   properties: {
+//     roleDefinitionId: keyVaultSecretsUser.id
+//     principalId: webapp.identity.principalId
+//     principalType: 'ServicePrincipal'
+//   }
+// }
 
 resource postgresDNS 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: 'private.postgres.database.azure.com'
@@ -406,14 +315,15 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
 }
 
 // Must be done separately because `name` must be known at deployment time
-module postgresAADAdmin './postgresAdmin.bicep' = {
-  name: 'postgresAADAdmin'
-  params: {
-    postgresServer: postgres.name
-    principalId: webapp.identity.principalId
-    principalName: webapp.name
-  }
-}
+// TODO: restore after configuring AKS
+// module postgresAADAdmin './postgresAdmin.bicep' = {
+//   name: 'postgresAADAdmin'
+//   params: {
+//     postgresServer: postgres.name
+//     principalId: webapp.identity.principalId
+//     principalName: webapp.name
+//   }
+// }
 
 // bug? This can't be redeployed if the replica already exists
 resource postgresReadReplica 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-01' = {
@@ -421,7 +331,8 @@ resource postgresReadReplica 'Microsoft.DBforPostgreSQL/flexibleServers@2022-12-
     postgresDNSVnetLink
     
     // force the AAD config on the primary to be created before creating the replica
-    postgresAADAdmin
+    // TODO: restore after configuring AKS
+    // postgresAADAdmin
   ]
 
   name: 'postgres${suffix}-read'
