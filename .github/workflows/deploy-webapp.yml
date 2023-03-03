@@ -1,0 +1,41 @@
+name: Deploy Web App
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+
+env:
+  APP_NAME: webappt3qou
+  ACR: acrt3qou.azurecr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: "Login via Azure CLI"
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Login to ACR
+      run: |
+        az acr login -n ${{ env.ACR }}
+
+    - name: Build Image
+      run: |
+        docker build ./fastapi -t ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
+        docker push ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }} 
+
+    - uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.APP_NAME }}
+        images: ${{ env.ACR }}/${{ env.APP_NAME }}:${{ github.sha }}
+        slot-name: staging
